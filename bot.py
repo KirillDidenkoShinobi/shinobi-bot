@@ -2380,7 +2380,9 @@ async def export_excel_callback(
 # =========================================================
 
 async def main():
-
+    print("Удаляю старый webhook...")
+    wait bot.delete_webhook(drop_pending_updates=True)
+    print("Webhook удалён.")
     print("=" * 50)
     print(" SHINOBI TEAM REFERRAL BOT")
     print(" БОТ ЗАПУЩЕН")
@@ -2396,6 +2398,8 @@ async def main():
             "chat_join_request"
         ]
     )
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
