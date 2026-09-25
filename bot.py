@@ -7,7 +7,6 @@ import string
 from datetime import datetime
 
 from aiogram import Bot, Dispatcher, F, BaseMiddleware
-from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -60,9 +59,7 @@ ERROR_DELETE_AFTER = 15
 # PythonAnywhere Free: исходящие подключения должны идти через их HTTP-прокси.
 # Сначала берём адрес из переменных окружения PythonAnywhere; fallback оставлен
 # на стандартный адрес их прокси.
-PROXY_URL = os.getenv("https_proxy") or os.getenv("HTTPS_PROXY") or os.getenv("http_proxy") or os.getenv("HTTP_PROXY") or "http://proxy.server:3128"
-telegram_session = AiohttpSession(proxy=PROXY_URL)
-bot = Bot(token=BOT_TOKEN, session=telegram_session)
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 # Управление доступом к командам в группах.
