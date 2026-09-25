@@ -1,0 +1,167 @@
+{
+    "users": {
+        "1197818066": {
+            "id": 1197818066,
+            "name": "Люблю Сашу",
+            "username": "kirreuss",
+            "links": [
+                "https://t.me/+IOce6ho7la5iY2Iy",
+                "https://t.me/+xo1H8qC7Vbk3ZWEy"
+            ],
+            "total_invited": 1,
+            "invited_users": [
+                8979276902
+            ]
+        },
+        "5921924076": {
+            "id": 5921924076,
+            "name": "˙ . 🩹꒷ 𝙲𝚊𝚙𝚕𝚒𝚜𝚎 . 𖦹˙—",
+            "username": "Caplise",
+            "links": [],
+            "total_invited": 0,
+            "invited_users": []
+        },
+        "788794228": {
+            "id": 788794228,
+            "name": "ѕнιησвυ ღ",
+            "username": "Elleasenty",
+            "links": [
+                "https://t.me/+LiBk0pf8QcYzNDVi"
+            ],
+            "total_invited": 1,
+            "invited_users": [
+                8055288132
+            ]
+        },
+        "8506203337": {
+            "id": 8506203337,
+            "name": "zhoska",
+            "username": "hon3ycome",
+            "links": [
+                "https://t.me/+hgBLT8sloT41NzJi",
+                "https://t.me/+QmKj93A4qpU5MTBi"
+            ],
+            "total_invited": 0,
+            "invited_users": []
+        }
+    },
+    "links": {
+        "https://t.me/+hgBLT8sloT41NzJi": {
+            "owner_id": 8506203337,
+            "created": "2026-09-25T16:32:10.663643",
+            "invited": 0,
+            "users": [],
+            "join_request": false
+        },
+        "https://t.me/+IOce6ho7la5iY2Iy": {
+            "owner_id": 1197818066,
+            "created": "2026-09-25T15:09:36.652917",
+            "invited": 1,
+            "users": [
+                {
+                    "id": 8979276902,
+                    "name": "……..",
+                    "username": "ioosiiwm",
+                    "joined": "2026-09-25T16:08:03.381127"
+                }
+            ],
+            "join_request": true
+        },
+        "https://t.me/+QmKj93A4qpU5MTBi": {
+            "owner_id": 8506203337,
+            "created": "2026-09-25T15:09:37.704070",
+            "invited": 0,
+            "users": [],
+            "join_request": false
+        },
+        "https://t.me/+xo1H8qC7Vbk3ZWEy": {
+            "owner_id": 1197818066,
+            "created": "2026-09-25T15:32:28.142580",
+            "invited": 0,
+            "users": [],
+            "join_request": true
+        },
+        "https://t.me/+LiBk0pf8QcYzNDVi": {
+            "owner_id": 788794228,
+            "created": "2026-09-25T15:32:34.784870",
+            "invited": 1,
+            "users": [
+                {
+                    "id": 8055288132,
+                    "name": "кафеткаааа🍭",
+                    "username": "malinkawe",
+                    "joined": "2026-09-25T16:05:09.187740"
+                }
+            ],
+            "join_request": true
+        }
+    },
+    "bot_admins": [
+        788794228
+    ],
+    "known_groups": {
+        "-1004462686385": {
+            "id": -1004462686385,
+            "title": "𝐒𝐡𝐢𝐧𝐨𝐛𝐢 𝐓𝐞𝐚𝐦 『𝐌𝐋𝐁𝐁』| STAFF",
+            "bot_status": "administrator",
+            "installed_by": 1197818066,
+            "installed_at": "2026-09-25T16:05:56.475690"
+        },
+        "-1004368701081": {
+            "id": -1004368701081,
+            "title": "𝐒𝐡𝐢𝐧𝐨𝐛𝐢 𝐓𝐞𝐚𝐦 『𝐌𝐋𝐁𝐁』| CHAT",
+            "bot_status": "administrator",
+            "installed_by": 1197818066,
+            "installed_at": "2026-09-25T16:27:03.520736"
+        }
+    },
+    "group_command_access": {
+        "-1004368701081": "deny",
+        "-1004462686385": "allow"
+    },
+    "installed_groups": [
+        "-1004462686385",
+        "-1004368701081"
+    ],
+    "pending_join_requests": {
+        "-1004368701081:8714004313": {
+            "chat_id": -1004368701081,
+            "chat_title": "𝐒𝐡𝐢𝐧𝐨𝐛𝐢 𝐓𝐞𝐚𝐦 『𝐌𝐋𝐁𝐁』| CHAT",
+            "user_id": 8714004313,
+            "name": "Кр",
+            "username": "",
+            "invite_link": "https://t.me/+f0aH8jq6TekwMjEy",
+            "link_owner_id": null,
+            "created": "2026-09-25T16:38:42.585252",
+            "status": "approved",
+            "decided_by": 8506203337,
+            "decided_at": "2026-09-25T16:38:46.333570"
+        },
+        "-1004368701081:8055288132": {
+            "chat_id": -1004368701081,
+            "chat_title": "𝐒𝐡𝐢𝐧𝐨𝐛𝐢 𝐓𝐞𝐚𝐦 『𝐌𝐋𝐁𝐁』| CHAT",
+            "user_id": 8055288132,
+            "name": "кафеткаааа🍭",
+            "username": "malinkawe",
+            "invite_link": "https://t.me/+LiBk0pf8QcYzNDVi",
+            "link_owner_id": 788794228,
+            "created": "2026-09-25T16:05:01.743370",
+            "status": "approved",
+            "decided_by": 1197818066,
+            "decided_at": "2026-09-25T16:05:09.172974"
+        },
+        "-1004368701081:8979276902": {
+            "chat_id": -1004368701081,
+            "chat_title": "𝐒𝐡𝐢𝐧𝐨𝐛𝐢 𝐓𝐞𝐚𝐦 『𝐌𝐋𝐁𝐁』| CHAT",
+            "user_id": 8979276902,
+            "name": "……..",
+            "username": "ioosiiwm",
+            "invite_link": "https://t.me/+IOce6ho7la5iY2Iy",
+            "link_owner_id": 1197818066,
+            "created": "2026-09-25T16:07:53.104031",
+            "status": "approved",
+            "decided_by": 1197818066,
+            "decided_at": "2026-09-25T16:08:03.364387"
+        }
+    }
+}

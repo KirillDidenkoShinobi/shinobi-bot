@@ -1,0 +1,184 @@
+{
+  "1197818066": {
+    "Monday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    },
+    "Tuesday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    },
+    "Wednesday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    },
+    "Thursday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    },
+    "Friday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    },
+    "Saturday": {
+      "off": true,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": false
+    },
+    "Sunday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    }
+  },
+  "788794228": {
+    "Monday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    },
+    "Tuesday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    },
+    "Wednesday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    },
+    "Thursday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    },
+    "Friday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    },
+    "Saturday": {
+      "off": true,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": false
+    },
+    "Sunday": {
+      "off": false,
+      "start": "",
+      "end": "",
+      "duties": [
+        "owner_tech"
+      ],
+      "always": true
+    }
+  },
+  "8714004313": {
+    "Monday": {
+      "off": false,
+      "start": "00:00",
+      "end": "07:00",
+      "duties": []
+    }
+  },
+  "8506203337": {
+    "Monday": {
+      "off": true,
+      "start": "",
+      "end": "",
+      "duties": []
+    },
+    "Tuesday": {
+      "off": false,
+      "start": "15:00",
+      "end": "23:00",
+      "duties": []
+    },
+    "Wednesday": {
+      "off": false,
+      "start": "15:00",
+      "end": "01:30",
+      "duties": []
+    },
+    "Thursday": {
+      "off": false,
+      "start": "12:00",
+      "end": "01:30",
+      "duties": []
+    },
+    "Friday": {
+      "off": false,
+      "start": "12:00",
+      "end": "01:30",
+      "duties": []
+    },
+    "Saturday": {
+      "off": false,
+      "start": "12:00",
+      "end": "01:30",
+      "duties": []
+    },
+    "Sunday": {
+      "off": false,
+      "start": "12:00",
+      "end": "01:30",
+      "duties": []
+    }
+  }
+}
