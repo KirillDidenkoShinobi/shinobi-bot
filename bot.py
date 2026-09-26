@@ -23,7 +23,7 @@ from aiogram.types import (
     KeyboardButton,
 )
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, Alignment
 
 from schedule_system import (
@@ -205,14 +205,53 @@ def default_data():
         "group_command_access": {},
         "pending_join_requests": {},
         "advertising_link": "",
-        "maintenance_mode": False
+        "maintenance_mode": False,
+        "invite_adjustments": []
     }
+
+
+def _load_data_from_excel_backup():
+    """Восстанавливает полную data.json из скрытого листа Excel Backup JSON."""
+    if not os.path.exists(EXCEL_FILE):
+        return None
+    try:
+        workbook = load_workbook(EXCEL_FILE, read_only=True, data_only=True)
+        if "Backup JSON" not in workbook.sheetnames:
+            workbook.close()
+            return None
+        sheet = workbook["Backup JSON"]
+        chunks = []
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            if row and row[0] is not None:
+                chunks.append(str(row[0]))
+        workbook.close()
+        if not chunks:
+            return None
+        restored = json.loads("".join(chunks))
+        if not isinstance(restored, dict):
+            return None
+        restored.setdefault("users", {})
+        restored.setdefault("links", {})
+        restored.setdefault("bot_admins", [])
+        restored.setdefault("known_groups", {})
+        restored.setdefault("installed_groups", [])
+        restored.setdefault("group_command_access", {})
+        restored.setdefault("pending_join_requests", {})
+        restored.setdefault("advertising_link", "")
+        restored.setdefault("maintenance_mode", False)
+        restored.setdefault("invite_adjustments", [])
+        print("База восстановлена из Excel-резерва.")
+        return restored
+    except Exception as error:
+        print("Не удалось восстановить базу из Excel:", error)
+        return None
 
 
 def load_data():
 
     if not os.path.exists(DATA_FILE):
-        return default_data()
+        restored = _load_data_from_excel_backup()
+        return restored if restored is not None else default_data()
 
     try:
 
@@ -228,12 +267,13 @@ def load_data():
         loaded.setdefault("pending_join_requests", {})
         loaded.setdefault("advertising_link", "")
         loaded.setdefault("maintenance_mode", False)
+        loaded.setdefault("invite_adjustments", [])
 
         return loaded
 
     except (json.JSONDecodeError, OSError):
-
-        return default_data()
+        restored = _load_data_from_excel_backup()
+        return restored if restored is not None else default_data()
 
 
 data = load_data()
@@ -247,6 +287,16 @@ for _uid in data.get("bot_admins", []):
     except (TypeError, ValueError):
         pass
 init_schedule_system(ADMIN_IDS)
+
+
+def _sync_excel_backup_safe():
+    """Обновляет постоянный Excel-снимок базы после каждого изменения data.json."""
+    try:
+        creator = globals().get("create_excel")
+        if callable(creator):
+            creator()
+    except Exception as error:
+        print("Не удалось обновить Excel-резерв:", error)
 
 
 def save_data():
@@ -271,6 +321,7 @@ def save_data():
             os.fsync(file.fileno())
 
         os.replace(temp_file, DATA_FILE)
+        _sync_excel_backup_safe()
         return
 
     except OSError as error:
@@ -295,6 +346,8 @@ def save_data():
 
             file.write(payload)
             file.flush()
+
+        _sync_excel_backup_safe()
 
     except OSError as error:
 
@@ -1619,315 +1672,109 @@ async def top_callback(callback: CallbackQuery):
 # =========================================================
 
 def create_excel():
-
+    """Полный постоянный Excel-снимок реферальной базы Shinobi Team."""
     workbook = Workbook()
 
-    # =====================================================
-    # ЛИСТ №1 — РЕФЕРАЛЬНЫЕ ССЫЛКИ
-    # =====================================================
-
-    sheet = workbook.active
-
-    sheet.title = (
-        "Реферальные ссылки"
-    )
-
-    headers = [
-        "№",
-        "Ссылка",
-        "ID создателя",
-        "Username",
-        "Имя",
-        "Приглашено",
-        "Дата создания"
-    ]
-
-    sheet.append(headers)
-
-    for cell in sheet[1]:
-
-        cell.font = Font(
-            bold=True
-        )
-
-        cell.alignment = Alignment(
-            horizontal="center",
-            vertical="center"
-        )
-
-    number = 1
-
-    for link, info in data["links"].items():
-
-        owner_id = str(
-            info.get(
-                "owner_id",
-                ""
-            )
-        )
-
-        owner = data["users"].get(
-            owner_id,
-            {}
-        )
-
-        username = owner.get(
-            "username",
-            ""
-        )
-
-        if username:
-
-            username = (
-                f"@{username}"
-            )
-
-        created = info.get(
-            "created",
-            ""
-        )
-
-        try:
-
-            created = (
-                datetime
-                .fromisoformat(created)
-                .strftime(
-                    "%d.%m.%Y %H:%M:%S"
-                )
-            )
-
-        except Exception:
-            pass
-
-        sheet.append([
-            number,
-            link,
-            owner_id,
-            username,
-            owner.get(
-                "name",
-                ""
-            ),
-            info.get(
-                "invited",
-                0
-            ),
-            created
+    # 1. Пользователи
+    users_sheet = workbook.active
+    users_sheet.title = "Пользователи"
+    users_sheet.append(["ID", "Username", "Имя", "Всего приглашено", "Количество ссылок", "Ссылки"])
+    for uid, user in sorted(data.get("users", {}).items(), key=lambda x: (x[1].get("name") or "").casefold()):
+        links = user.get("links", [])
+        users_sheet.append([
+            int(user.get("id") or uid),
+            ("@" + user.get("username", "")) if user.get("username") else "",
+            user.get("name", ""),
+            int(user.get("total_invited", 0) or 0),
+            len(links),
+            "\n".join(links),
         ])
 
-        number += 1
+    # 2. Все реферальные ссылки
+    links_sheet = workbook.create_sheet("Реферальные ссылки")
+    links_sheet.append([
+        "№", "Ссылка", "Тип", "ID создателя", "Username создателя", "Имя создателя",
+        "Приглашено по ссылке", "Дата создания", "Вход по заявке"
+    ])
+    for number, (link, info) in enumerate(data.get("links", {}).items(), 1):
+        owner_id = info.get("owner_id")
+        owner = data.get("users", {}).get(str(owner_id), {}) if owner_id is not None else {}
+        links_sheet.append([
+            number, link, info.get("type", "referral"), owner_id if owner_id is not None else "",
+            ("@" + owner.get("username", "")) if owner.get("username") else "",
+            owner.get("name", info.get("label", "")), int(info.get("invited", 0) or 0),
+            info.get("created", ""), "Да" if info.get("join_request") else "Нет"
+        ])
 
-    sheet.freeze_panes = "A2"
-
-    sheet.auto_filter.ref = (
-        sheet.dimensions
-    )
-
-    sheet.column_dimensions[
-        "A"
-    ].width = 8
-
-    sheet.column_dimensions[
-        "B"
-    ].width = 45
-
-    sheet.column_dimensions[
-        "C"
-    ].width = 20
-
-    sheet.column_dimensions[
-        "D"
-    ].width = 25
-
-    sheet.column_dimensions[
-        "E"
-    ].width = 30
-
-    sheet.column_dimensions[
-        "F"
-    ].width = 15
-
-    sheet.column_dimensions[
-        "G"
-    ].width = 23
-
-
-    # =====================================================
-    # ЛИСТ №2 — ПРИГЛАШЁННЫЕ
-    # =====================================================
-
-    refs_sheet = workbook.create_sheet(
-        "Приглашённые"
-    )
-
-    ref_headers = [
-        "№",
-        "Ссылка",
-        "ID создателя",
-        "Username создателя",
-        "ID приглашённого",
-        "Username приглашённого",
-        "Имя приглашённого",
-        "Дата вступления"
-    ]
-
-    refs_sheet.append(
-        ref_headers
-    )
-
-    for cell in refs_sheet[1]:
-
-        cell.font = Font(
-            bold=True
-        )
-
-        cell.alignment = Alignment(
-            horizontal="center",
-            vertical="center"
-        )
-
+    # 3. Реально вступившие люди
+    refs_sheet = workbook.create_sheet("Приглашённые")
+    refs_sheet.append([
+        "№", "Ссылка", "ID создателя", "Username создателя", "Имя создателя",
+        "ID приглашённого", "Username приглашённого", "Имя приглашённого", "Дата вступления", "Источник"
+    ])
     ref_number = 1
-
-    for link, info in data["links"].items():
-
-        owner_id = str(
-            info.get(
-                "owner_id",
-                ""
-            )
-        )
-
-        owner = data["users"].get(
-            owner_id,
-            {}
-        )
-
-        owner_username = owner.get(
-            "username",
-            ""
-        )
-
-        if owner_username:
-
-            owner_username = (
-                f"@{owner_username}"
-            )
-
-        for ref in info.get(
-            "users",
-            []
-        ):
-
-            ref_username = ref.get(
-                "username",
-                ""
-            )
-
-            if ref_username:
-
-                ref_username = (
-                    f"@{ref_username}"
-                )
-
-            joined = ref.get(
-                "joined",
-                ""
-            )
-
-            try:
-
-                joined = (
-                    datetime
-                    .fromisoformat(joined)
-                    .strftime(
-                        "%d.%m.%Y %H:%M:%S"
-                    )
-                )
-
-            except Exception:
-                pass
-
+    for link, info in data.get("links", {}).items():
+        owner_id = info.get("owner_id")
+        owner = data.get("users", {}).get(str(owner_id), {}) if owner_id is not None else {}
+        for ref in info.get("users", []):
             refs_sheet.append([
-                ref_number,
-                link,
-                owner_id,
-                owner_username,
-                ref.get(
-                    "id",
-                    ""
-                ),
-                ref_username,
-                ref.get(
-                    "name",
-                    ""
-                ),
-                joined
+                ref_number, link, owner_id if owner_id is not None else "",
+                ("@" + owner.get("username", "")) if owner.get("username") else "",
+                owner.get("name", info.get("label", "")), ref.get("id", ""),
+                ("@" + ref.get("username", "")) if ref.get("username") else "",
+                ref.get("name", ""), ref.get("joined", ""), ref.get("source", "")
             ])
-
             ref_number += 1
 
-    refs_sheet.freeze_panes = (
-        "A2"
-    )
+    # 4. История ручных корректировок администратором
+    adj_sheet = workbook.create_sheet("Ручные изменения")
+    adj_sheet.append([
+        "Дата", "Администратор ID", "Администратор", "Пользователь ID", "Username пользователя",
+        "Имя пользователя", "Ссылка", "Действие", "Значение", "Было", "Стало"
+    ])
+    for item in data.get("invite_adjustments", []):
+        adj_sheet.append([
+            item.get("created", ""), item.get("admin_id", ""), item.get("admin_name", ""),
+            item.get("user_id", ""), item.get("username", ""), item.get("name", ""),
+            item.get("link", ""), item.get("action", ""), item.get("value", ""),
+            item.get("old", ""), item.get("new", "")
+        ])
 
-    refs_sheet.auto_filter.ref = (
-        refs_sheet.dimensions
-    )
+    # 5. Системный снимок — помогает понять состояние резервной копии.
+    sys_sheet = workbook.create_sheet("Система")
+    sys_sheet.append(["Параметр", "Значение"])
+    sys_sheet.append(["Обновлено", datetime.now().isoformat(timespec="seconds")])
+    sys_sheet.append(["Пользователей", len(data.get("users", {}))])
+    sys_sheet.append(["Ссылок", len(data.get("links", {}))])
+    sys_sheet.append(["Ручных изменений", len(data.get("invite_adjustments", []))])
+    sys_sheet.append(["Рекламная ссылка", data.get("advertising_link", "")])
 
-    refs_sheet.column_dimensions[
-        "A"
-    ].width = 8
+    # 6. Скрытая полная копия data.json. Она нужна для точного восстановления
+    # пользователей, ссылок, статистики, заявок и всех служебных полей.
+    backup_sheet = workbook.create_sheet("Backup JSON")
+    backup_sheet.append(["JSON backup chunks"])
+    backup_payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    chunk_size = 30000
+    for pos in range(0, len(backup_payload), chunk_size):
+        backup_sheet.append([backup_payload[pos:pos + chunk_size]])
+    backup_sheet.sheet_state = "hidden"
 
-    refs_sheet.column_dimensions[
-        "B"
-    ].width = 45
-
-    refs_sheet.column_dimensions[
-        "C"
-    ].width = 22
-
-    refs_sheet.column_dimensions[
-        "D"
-    ].width = 25
-
-    refs_sheet.column_dimensions[
-        "E"
-    ].width = 22
-
-    refs_sheet.column_dimensions[
-        "F"
-    ].width = 27
-
-    refs_sheet.column_dimensions[
-        "G"
-    ].width = 30
-
-    refs_sheet.column_dimensions[
-        "H"
-    ].width = 23
-
-    # =====================================================
-    # ОБЩЕЕ ВЫРАВНИВАНИЕ
-    # =====================================================
-
-    for current_sheet in [
-        sheet,
-        refs_sheet
-    ]:
-
-        for row in current_sheet.iter_rows():
-
+    # Оформление всех листов.
+    for sheet in workbook.worksheets:
+        sheet.freeze_panes = "A2"
+        sheet.auto_filter.ref = sheet.dimensions
+        for cell in sheet[1]:
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for row in sheet.iter_rows(min_row=2):
             for cell in row:
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+        for col in sheet.columns:
+            letter = col[0].column_letter
+            max_len = max((len(str(c.value or "")) for c in col[:100]), default=10)
+            sheet.column_dimensions[letter].width = min(max(max_len + 2, 12), 45)
 
-                cell.alignment = Alignment(
-                    vertical="center"
-                )
-
-    workbook.save(
-        EXCEL_FILE
-    )
-
+    workbook.save(EXCEL_FILE)
     return EXCEL_FILE
 
 
@@ -2495,11 +2342,40 @@ async def admin_invite_edit_value(message: Message, state: FSMContext):
     else:
         await state.clear(); await message.answer("❌ Неизвестное действие."); return
     user["total_invited"] = new
+
+    # Ручную корректировку привязываем к основной ссылке пользователя, если она есть.
+    user_links = [link for link in user.get("links", []) if link in data.get("links", {})]
+    primary_link = user_links[0] if user_links else ""
+    delta = new - old
+    if primary_link:
+        link_info = data["links"][primary_link]
+        link_info["invited"] = max(0, int(link_info.get("invited", 0) or 0) + delta)
+
+    action_names = {"add": "Добавлено", "sub": "Отнято", "set": "Установлено"}
+    data.setdefault("invite_adjustments", []).append({
+        "created": datetime.now().isoformat(timespec="seconds"),
+        "admin_id": message.from_user.id,
+        "admin_name": message.from_user.full_name,
+        "user_id": uid,
+        "username": ("@" + user.get("username", "")) if user.get("username") else "",
+        "name": user.get("name", ""),
+        "link": primary_link,
+        "action": action_names.get(action, action),
+        "value": value,
+        "old": old,
+        "new": new
+    })
     save_data()
     await state.clear()
+    link_text = primary_link if primary_link else "Нет сохранённой ссылки"
     await message.answer(
-        f"✅ <b>Количество приглашённых изменено</b>\n\nБыло: <b>{old}</b>\nСтало: <b>{new}</b>",
-        parse_mode="HTML", reply_markup=admin_user_actions_keyboard(uid, page)
+        f"✅ <b>Количество приглашённых изменено</b>\n\n"
+        f"👤 {display_user(user)}\n"
+        f"🔗 {link_text}\n"
+        f"Было: <b>{old}</b>\nСтало: <b>{new}</b>\n\n"
+        "💾 Изменение записано в data.json и Excel.",
+        parse_mode="HTML", reply_markup=admin_user_actions_keyboard(uid, page),
+        disable_web_page_preview=True
     )
 
 
@@ -2666,8 +2542,11 @@ async def export_excel_callback(
                 f"<b>{len(data['links'])}</b>\n"
                 f"👥 Приглашено: "
                 f"<b>{total_invited}</b>\n\n"
-                "📄 Лист 1 — ссылки\n"
-                "📄 Лист 2 — приглашённые"
+                "📄 Пользователи и их итоговая статистика\n"
+                "📄 Все реферальные ссылки\n"
+                "📄 Реально приглашённые пользователи\n"
+                "📄 История ручных изменений\n"
+                "📄 Системный снимок"
             ),
             parse_mode="HTML"
         )
@@ -2681,19 +2560,8 @@ async def export_excel_callback(
         )
 
     finally:
-
-        if os.path.exists(
-            EXCEL_FILE
-        ):
-
-            try:
-
-                os.remove(
-                    EXCEL_FILE
-                )
-
-            except OSError:
-                pass
+        # Excel теперь является постоянной резервной копией и не удаляется после отправки.
+        pass
 
 
 # =========================================================
