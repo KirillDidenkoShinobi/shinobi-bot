@@ -201,7 +201,8 @@ def default_data():
         "known_groups": {},
         "installed_groups": [],
         "group_command_access": {},
-        "pending_join_requests": {}
+        "pending_join_requests": {},
+        "advertising_link": ""
     }
 
 
@@ -222,6 +223,7 @@ def load_data():
         loaded.setdefault("installed_groups", [])
         loaded.setdefault("group_command_access", {})
         loaded.setdefault("pending_join_requests", {})
+        loaded.setdefault("advertising_link", "")
 
         return loaded
 
@@ -493,6 +495,12 @@ def admin_keyboard():
                 InlineKeyboardButton(
                     text="📩 Заявки на вступление",
                     callback_data="admin_join_requests"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📣 Ссылка для рекламы",
+                    callback_data="advertising_link"
                 )
             ]
         ]
@@ -776,6 +784,77 @@ async def link_callback(callback: CallbackQuery):
 
 
 # =========================================================
+# ЕДИНАЯ ССЫЛКА ДЛЯ РЕКЛАМЫ
+# =========================================================
+
+@dp.callback_query(F.data == "advertising_link")
+async def advertising_link_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+
+    await callback.answer("Получаю рекламную ссылку...")
+    link = data.get("advertising_link", "")
+
+    # Если ссылка уже есть в базе, повторно её не создаём.
+    if link and link in data.get("links", {}):
+        await callback.message.answer(
+            "📣 <b>ССЫЛКА ДЛЯ РЕКЛАМЫ</b>\n\n"
+            f"{link}\n\n"
+            "Это единая ссылка для рекламных постов. Новую при каждом нажатии бот не создаёт.",
+            parse_mode="HTML", disable_web_page_preview=True
+        )
+        return
+
+    try:
+        invite = await bot.create_chat_invite_link(
+            chat_id=CHAT_ID,
+            name="SHINOBI_ADVERTISING",
+            creates_join_request=False
+        )
+    except Exception as error:
+        await callback.message.answer(
+            "❌ <b>Не удалось создать рекламную ссылку.</b>\n\n"
+            "Проверь права бота на создание пригласительных ссылок.\n\n"
+            f"<code>{error}</code>", parse_mode="HTML"
+        )
+        return
+
+    link = invite.invite_link
+    data["advertising_link"] = link
+    data.setdefault("links", {})[link] = {
+        "owner_id": None,
+        "type": "advertising",
+        "label": "Ссылка для рекламы",
+        "created": datetime.now().isoformat(),
+        "invited": 0,
+        "users": [],
+        "join_request": False
+    }
+    save_data()
+
+    await callback.message.answer(
+        "✅ <b>СОЗДАНА ССЫЛКА ДЛЯ РЕКЛАМЫ</b>\n\n"
+        f"{link}\n\n"
+        "В источнике приглашения она будет отображаться как <b>«Ссылка для рекламы»</b>.",
+        parse_mode="HTML", disable_web_page_preview=True
+    )
+
+
+def invite_source_text(invite_url: str) -> str:
+    if not invite_url:
+        return "Ссылка не относится к боту"
+    info = data.get("links", {}).get(invite_url)
+    if not info:
+        return "Ссылка не относится к боту"
+    if info.get("type") == "advertising":
+        return "Ссылка для рекламы"
+    owner_id = info.get("owner_id")
+    owner = get_user(owner_id) if owner_id else None
+    return owner.get("name", "Ссылка не относится к боту") if owner else "Ссылка не относится к боту"
+
+
+# =========================================================
 # ЗАЯВКИ НА ВСТУПЛЕНИЕ
 # =========================================================
 
@@ -792,15 +871,14 @@ def _join_request_keyboard(chat_id: int, user_id: int):
 
 def _join_request_text(req: dict) -> str:
     username = f"@{req['username']}" if req.get("username") else "—"
-    owner = get_user(req.get("link_owner_id", 0)) if req.get("link_owner_id") else None
-    owner_name = owner.get("name", "—") if owner else "—"
+    source = req.get("link_source") or invite_source_text(req.get("invite_link", ""))
     return (
         "📩 <b>НОВАЯ ЗАЯВКА НА ВСТУПЛЕНИЕ</b>\n\n"
         f"👤 {req.get('name', 'Без имени')}\n"
         f"🔹 {username}\n"
         f"🆔 <code>{req.get('user_id')}</code>\n"
         f"🏘 Группа: <b>{req.get('chat_title', 'Shinobi Team')}</b>\n"
-        f"🔗 Ссылка создана: <b>{owner_name}</b>\n\n"
+        f"🔗 Источник: <b>{source}</b>\n\n"
         "Решение синхронизируется для всех администраторов."
     )
 
@@ -820,6 +898,7 @@ async def join_request_handler(event: ChatJoinRequest):
         "username": event.from_user.username or "",
         "invite_link": invite_url,
         "link_owner_id": link_info.get("owner_id"),
+        "link_source": invite_source_text(invite_url),
         "created": datetime.now().isoformat(),
         "status": "pending"
     }
@@ -961,36 +1040,41 @@ async def member_join_handler(event: ChatMemberUpdated):
 
     used_link = event.invite_link.invite_link
 
-    # Если ссылка была создана не нашим ботом
-    if used_link not in data["links"]:
-        return
-
     joined_user = event.new_chat_member.user
 
     # Ботов не считаем
     if joined_user.is_bot:
         return
 
-    link_info = data["links"][used_link]
-
-    owner_id = str(
-        link_info["owner_id"]
-    )
-
-    if owner_id not in data["users"]:
+    # Чужая/ручная ссылка не относится к реферальной системе бота.
+    if used_link not in data.get("links", {}):
         return
 
+    link_info = data["links"][used_link]
+
+    # Рекламная ссылка общая и не принадлежит конкретному пользователю.
+    if link_info.get("type") == "advertising":
+        link_info.setdefault("invited", 0)
+        link_info.setdefault("users", [])
+        if any(x.get("id") == joined_user.id for x in link_info["users"]):
+            return
+        link_info["invited"] += 1
+        link_info["users"].append({
+            "id": joined_user.id,
+            "name": joined_user.full_name,
+            "username": joined_user.username or "",
+            "joined": datetime.now().isoformat(),
+            "source": "Ссылка для рекламы"
+        })
+        save_data()
+        return
+
+    owner_id = str(link_info.get("owner_id"))
+    if owner_id not in data["users"]:
+        return
     owner = data["users"][owner_id]
-
-    owner.setdefault(
-        "invited_users",
-        []
-    )
-
-    owner.setdefault(
-        "total_invited",
-        0
-    )
+    owner.setdefault("invited_users", [])
+    owner.setdefault("total_invited", 0)
 
     link_info.setdefault(
         "invited",
