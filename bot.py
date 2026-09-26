@@ -9,6 +9,7 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher, F, BaseMiddleware
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message,
@@ -2226,8 +2227,16 @@ def admin_users_keyboard(page: int = 0):
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+class InviteCountEdit(StatesGroup):
+    waiting_value = State()
+
+
 def admin_user_actions_keyboard(uid: int, page: int = 0):
-    rows = []
+    rows = [
+        [InlineKeyboardButton(text="➕ Добавить", callback_data=f"admin_inv_add_{uid}_{page}"),
+         InlineKeyboardButton(text="➖ Отнять", callback_data=f"admin_inv_sub_{uid}_{page}")],
+        [InlineKeyboardButton(text="✏️ Установить число", callback_data=f"admin_inv_set_{uid}_{page}")]
+    ]
     if uid not in OWNER_IDS:
         if is_admin(uid):
             rows.append([InlineKeyboardButton(text="🛡 Снять права админа", callback_data=f"admin_demote_{uid}_{page}")])
@@ -2264,6 +2273,57 @@ async def admin_user_callback(callback: CallbackQuery):
     await callback.message.answer(
         f"👤 <b>{u.get('name') or 'Без имени'}</b>\n🆔 <code>{uid}</code>\n🔗 {username}\n🔐 Роль: <b>{role}</b>\n👥 Приглашено: <b>{u.get('total_invited', 0)}</b>",
         reply_markup=admin_user_actions_keyboard(uid, page), parse_mode="HTML")
+
+
+@dp.callback_query(F.data.startswith("admin_inv_"))
+async def admin_invite_edit_start(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("❌ Нет доступа", show_alert=True)
+        return
+    parts = callback.data.split("_")
+    action, uid, page = parts[2], int(parts[3]), int(parts[4])
+    if str(uid) not in data.get("users", {}):
+        await callback.answer("Пользователь не найден", show_alert=True)
+        return
+    await state.set_state(InviteCountEdit.waiting_value)
+    await state.update_data(invite_action=action, invite_uid=uid, invite_page=page)
+    labels = {"add": "добавить", "sub": "отнять", "set": "установить"}
+    await callback.answer()
+    await callback.message.answer(
+        f"👥 Сейчас приглашено: <b>{data['users'][str(uid)].get('total_invited', 0)}</b>\n\n"
+        f"Введи целое число, которое нужно <b>{labels[action]}</b>.\nНапример: <code>5</code>",
+        parse_mode="HTML"
+    )
+
+
+@dp.message(InviteCountEdit.waiting_value)
+async def admin_invite_edit_value(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        await state.clear()
+        return
+    raw = (message.text or "").strip()
+    if not raw.isdigit():
+        await message.answer("❌ Введи целое неотрицательное число, например <code>5</code>.", parse_mode="HTML")
+        return
+    value = int(raw)
+    ctx = await state.get_data()
+    action, uid, page = ctx.get("invite_action"), int(ctx.get("invite_uid")), int(ctx.get("invite_page", 0))
+    user = data.get("users", {}).get(str(uid))
+    if not user:
+        await state.clear(); await message.answer("❌ Пользователь больше не найден."); return
+    old = max(0, int(user.get("total_invited", 0) or 0))
+    if action == "add": new = old + value
+    elif action == "sub": new = max(0, old - value)
+    elif action == "set": new = value
+    else:
+        await state.clear(); await message.answer("❌ Неизвестное действие."); return
+    user["total_invited"] = new
+    save_data()
+    await state.clear()
+    await message.answer(
+        f"✅ <b>Количество приглашённых изменено</b>\n\nБыло: <b>{old}</b>\nСтало: <b>{new}</b>",
+        parse_mode="HTML", reply_markup=admin_user_actions_keyboard(uid, page)
+    )
 
 
 @dp.callback_query(F.data.startswith("admin_promote_"))
