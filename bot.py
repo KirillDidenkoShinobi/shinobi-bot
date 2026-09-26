@@ -71,6 +71,7 @@ COMMAND_BUTTON_TEXTS = {
     "🏖 Запросить выходной", "🗓 График / заполнить",
     "⚙️ Админ-панель", "🗓 Управление графиком", "📥 Скачать Excel",
     "📊 Общая статистика", "📅 Excel с графиками", "🏖 Excel с выходными",
+    "🛠 Тех. работы",
 }
 BLOCK_NOTICE_COOLDOWN = 4 * 60 * 60
 _block_notice_last = {}
@@ -203,7 +204,8 @@ def default_data():
         "installed_groups": [],
         "group_command_access": {},
         "pending_join_requests": {},
-        "advertising_link": ""
+        "advertising_link": "",
+        "maintenance_mode": False
     }
 
 
@@ -225,6 +227,7 @@ def load_data():
         loaded.setdefault("group_command_access", {})
         loaded.setdefault("pending_join_requests", {})
         loaded.setdefault("advertising_link", "")
+        loaded.setdefault("maintenance_mode", False)
 
         return loaded
 
@@ -374,6 +377,10 @@ def quick_reply_keyboard(user_id: int):
         [KeyboardButton(text="🏖 Запросить выходной"), KeyboardButton(text="🗓 График / заполнить")],
     ]
 
+    # Только владелец видит управление техническими работами.
+    if user_id in OWNER_IDS:
+        rows.append([KeyboardButton(text="🛠 Тех. работы")])
+
     # У администраторов дополнительно отдельный блок административных кнопок.
     if is_admin(user_id):
         rows.extend([
@@ -425,6 +432,15 @@ def main_keyboard(user_id: int):
         InlineKeyboardButton(text="🏖 Запросить выходной", callback_data="sch_dayoff")
     ])
     buttons.append([InlineKeyboardButton(text="🗓 График / заполнить", callback_data="sch_menu")])
+
+    if user_id in OWNER_IDS:
+        maintenance_on = bool(data.get("maintenance_mode", False))
+        buttons.append([
+            InlineKeyboardButton(
+                text=("🟢 Завершить тех. работы" if maintenance_on else "🛠 Тех. работы"),
+                callback_data="maintenance_menu"
+            )
+        ])
 
     if is_admin(user_id):
 
@@ -1980,6 +1996,167 @@ async def reply_schedule_excel(message: Message):
 @dp.message(F.text == "🏖 Excel с выходными")
 async def reply_dayoff_excel(message: Message):
     await _admin_shortcut(message, "export_dayoff_excel", "🏖 Excel с запросами выходных")
+
+
+# =========================================================
+# ТЕХНИЧЕСКИЕ РАБОТЫ — ТОЛЬКО ВЛАДЕЛЕЦ
+# =========================================================
+
+def maintenance_keyboard():
+    enabled = bool(data.get("maintenance_mode", False))
+    if enabled:
+        rows = [[InlineKeyboardButton(text="✅ Завершить тех. работы", callback_data="maintenance_finish")]]
+    else:
+        rows = [[InlineKeyboardButton(text="🛠 Начать тех. работы", callback_data="maintenance_start")]]
+    rows.append([InlineKeyboardButton(text="❌ Закрыть", callback_data="maintenance_close")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def maintenance_menu_text():
+    enabled = bool(data.get("maintenance_mode", False))
+    status = "🟠 <b>Технические работы идут</b>" if enabled else "🟢 <b>Бот работает в штатном режиме</b>"
+    return (
+        "🛠 <b>ТЕХНИЧЕСКИЕ РАБОТЫ</b>\n\n"
+        f"{status}\n\n"
+        "Отсюда владелец может отправить служебное уведомление "
+        "всем администраторам в ЛС и в группу <b>Admin Staff</b>."
+    )
+
+
+async def send_maintenance_notice(text: str):
+    # Личные сообщения всем администраторам.
+    for admin_id in set(ADMIN_IDS):
+        try:
+            await bot.send_message(admin_id, text, parse_mode="HTML")
+        except Exception:
+            pass
+
+    # Общее сообщение в Admin Staff.
+    try:
+        await bot.send_message(ADMIN_STAFF_CHAT_ID, text, parse_mode="HTML")
+    except Exception:
+        pass
+
+
+@dp.message(F.text == "🛠 Тех. работы")
+async def maintenance_reply_button(message: Message):
+    if message.from_user.id not in OWNER_IDS:
+        return
+    await message.answer(
+        maintenance_menu_text(),
+        reply_markup=maintenance_keyboard(),
+        parse_mode="HTML"
+    )
+
+
+@dp.callback_query(F.data == "maintenance_menu")
+async def maintenance_menu_callback(callback: CallbackQuery):
+    if callback.from_user.id not in OWNER_IDS:
+        await callback.answer("⛔ Доступно только владельцу.", show_alert=True)
+        return
+    await callback.answer()
+    await callback.message.answer(
+        maintenance_menu_text(),
+        reply_markup=maintenance_keyboard(),
+        parse_mode="HTML"
+    )
+
+
+@dp.callback_query(F.data == "maintenance_start")
+async def maintenance_start_callback(callback: CallbackQuery):
+    if callback.from_user.id not in OWNER_IDS:
+        await callback.answer("⛔ Доступно только владельцу.", show_alert=True)
+        return
+    if data.get("maintenance_mode", False):
+        await callback.answer("Технические работы уже запущены.", show_alert=True)
+        return
+
+    confirm = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚠️ Да, начать", callback_data="maintenance_start_confirm")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="maintenance_menu")]
+    ])
+    await callback.answer()
+    await callback.message.edit_text(
+        "⚠️ <b>ПОДТВЕРЖДЕНИЕ</b>\n\n"
+        "Начать технические работы?\n\n"
+        "После подтверждения уведомление получат все администраторы в ЛС, "
+        "а также группа <b>Admin Staff</b>.",
+        reply_markup=confirm,
+        parse_mode="HTML"
+    )
+
+
+@dp.callback_query(F.data == "maintenance_start_confirm")
+async def maintenance_start_confirm_callback(callback: CallbackQuery):
+    if callback.from_user.id not in OWNER_IDS:
+        await callback.answer("⛔ Доступно только владельцу.", show_alert=True)
+        return
+
+    data["maintenance_mode"] = True
+    save_data()
+
+    notice = (
+        "🛠 <b>SHINOBI TEAM BOT · ТЕХНИЧЕСКИЕ РАБОТЫ</b>\n\n"
+        "На боте начались технические работы.\n\n"
+        "⚙️ Сейчас могут проводиться обновления, исправления ошибок "
+        "и изменение функционала.\n\n"
+        "❗ Некоторые функции бота могут временно работать нестабильно "
+        "или быть недоступны.\n\n"
+        "Просьба не отправлять одну и ту же команду несколько раз, "
+        "если бот отвечает с задержкой.\n\n"
+        "🥷 После завершения работ администрация получит отдельное уведомление."
+    )
+    await send_maintenance_notice(notice)
+
+    await callback.answer("Технические работы запущены.")
+    await callback.message.edit_text(
+        "🛠 <b>Технические работы запущены.</b>\n\n"
+        "📨 Уведомление отправлено администраторам и в Admin Staff.",
+        reply_markup=maintenance_keyboard(),
+        parse_mode="HTML"
+    )
+
+
+@dp.callback_query(F.data == "maintenance_finish")
+async def maintenance_finish_callback(callback: CallbackQuery):
+    if callback.from_user.id not in OWNER_IDS:
+        await callback.answer("⛔ Доступно только владельцу.", show_alert=True)
+        return
+    if not data.get("maintenance_mode", False):
+        await callback.answer("Технические работы уже завершены.", show_alert=True)
+        return
+
+    data["maintenance_mode"] = False
+    save_data()
+
+    notice = (
+        "✅ <b>SHINOBI TEAM BOT · ТЕХНИЧЕСКИЕ РАБОТЫ ЗАВЕРШЕНЫ</b>\n\n"
+        "Обновление завершено. Бот снова работает в штатном режиме.\n\n"
+        "⚙️ Основные функции доступны для использования.\n"
+        "🥷 Спасибо за ожидание."
+    )
+    await send_maintenance_notice(notice)
+
+    await callback.answer("Технические работы завершены.")
+    await callback.message.edit_text(
+        "✅ <b>Технические работы завершены.</b>\n\n"
+        "📨 Администрация и Admin Staff получили уведомление.",
+        reply_markup=maintenance_keyboard(),
+        parse_mode="HTML"
+    )
+
+
+@dp.callback_query(F.data == "maintenance_close")
+async def maintenance_close_callback(callback: CallbackQuery):
+    if callback.from_user.id not in OWNER_IDS:
+        await callback.answer("⛔ Доступно только владельцу.", show_alert=True)
+        return
+    await callback.answer()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
 
 # =========================================================
 # /admin
