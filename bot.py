@@ -780,20 +780,9 @@ async def _send_created_link(tg_user, target, creates_join_request: bool = False
 
 
 async def create_ref_link(tg_user, target):
-    # Только администраторы выбирают тип ссылки. Для обычных пользователей
-    # сохраняется прежнее поведение — ссылка с мгновенным входом.
-    if is_admin(tg_user.id):
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⚡ Без заявки", callback_data="create_link_direct")],
-            [InlineKeyboardButton(text="📩 С заявкой на вход", callback_data="create_link_request")],
-        ])
-        text = "🔗 <b>ТИП ПРИГЛАСИТЕЛЬНОЙ ССЫЛКИ</b>\n\nВыбери режим входа в Shinobi Team:"
-        if isinstance(target, Message):
-            await target.answer(text, reply_markup=kb, parse_mode="HTML")
-        else:
-            await target.message.answer(text, reply_markup=kb, parse_mode="HTML")
-        return
-    await _send_created_link(tg_user, target, False)
+    # Все персональные реферальные ссылки автоматически создаются
+    # только в режиме заявки на вступление.
+    await _send_created_link(tg_user, target, True)
 
 
 @dp.callback_query(F.data.in_({"create_link_direct", "create_link_request"}))
